@@ -1,0 +1,191 @@
+/* ============================================================
+   Cyanote — 未来主义风格 (Future Mode)
+   An avant-garde, cyberpunk-ish "pioneer" skin that the
+   homepage can switch on/off. Applied via body.future-mode.
+   ============================================================ */
+
+body.future-mode {
+  --accent: #7c3aed;
+  --accent-2: #3b82f6;
+  --accent-3: #22d3ee;
+  --accent-strong: #a78bfa;
+  --accent-soft: color-mix(in srgb, #7c3aed 18%, transparent);
+  --border: #2b3f6e;
+  --border-soft: #22345c;
+  --radius: 14px;
+}
+
+/* animated perspective grid backdrop */
+body.future-mode::before {
+  background:
+    radial-gradient(1000px 600px at 80% -10%, rgba(124, 58, 237, 0.28), transparent 60%),
+    radial-gradient(900px 600px at 0% 10%, rgba(34, 211, 238, 0.14), transparent 55%),
+    radial-gradient(700px 500px at 50% 110%, rgba(37, 99, 235, 0.22), transparent 60%),
+    #060a18;
+}
+body.future-mode .bg-grid {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(96, 165, 250, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(96, 165, 250, 0.09) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 30%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 30%, transparent 78%);
+  animation: grid-drift 24s linear infinite;
+}
+@keyframes grid-drift {
+  from { background-position: 0 0, 0 0; }
+  to   { background-position: 0 46px, 46px 0; }
+}
+
+body.future-mode .site-header {
+  border-bottom-color: rgba(124, 58, 237, 0.35);
+  box-shadow: 0 8px 30px rgba(59, 130, 246, 0.15);
+}
+body.future-mode .brand-mark {
+  background: linear-gradient(135deg, #7c3aed, #22d3ee);
+  box-shadow: 0 0 18px rgba(124, 58, 237, 0.65);
+  animation: neon-pulse 3s ease-in-out infinite;
+}
+@keyframes neon-pulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(124, 58, 237, 0.6); }
+  50%      { box-shadow: 0 0 26px rgba(34, 211, 238, 0.85); }
+}
+
+/* hero: glass + neon + scanlines */
+body.future-mode .hero {
+  border: 1px solid rgba(124, 58, 237, 0.45);
+  background:
+    linear-gradient(160deg, rgba(19, 28, 56, 0.85), rgba(10, 15, 34, 0.9)),
+    radial-gradient(600px 300px at 85% 0%, rgba(124, 58, 237, 0.25), transparent 65%);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.15), 0 20px 60px rgba(59, 130, 246, 0.25);
+  backdrop-filter: blur(10px);
+}
+body.future-mode .hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(34, 211, 238, 0.035) 0 1px, transparent 1px 4px);
+  mix-blend-mode: overlay;
+}
+body.future-mode .hero::after {
+  width: 420px; height: 420px;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.25), transparent 65%);
+  animation: float-orb 9s ease-in-out infinite;
+}
+@keyframes float-orb {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.8; }
+  50%      { transform: translate(-46px, 34px) scale(1.12); opacity: 1; }
+}
+body.future-mode .hero h1 {
+  background: linear-gradient(100deg, #e0e7ff 10%, #7dd3fc 40%, #c4b5fd 70%, #67e8f9 95%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-sheen 6s linear infinite;
+  filter: drop-shadow(0 0 18px rgba(99, 179, 237, 0.45));
+}
+@keyframes gradient-sheen {
+  from { background-position: 0% 0; }
+  to   { background-position: 220% 0; }
+}
+body.future-mode .hero h1 .blue { color: inherit; }
+body.future-mode .hero-sub { color: #b6c6e8; }
+body.future-mode .btn-primary {
+  background: linear-gradient(135deg, #7c3aed, #3b82f6 55%, #22d3ee);
+  background-size: 200% 100%;
+  box-shadow: 0 0 24px rgba(124, 58, 237, 0.55);
+  animation: gradient-sheen 4s linear infinite;
+}
+body.future-mode .btn-ghost {
+  border-color: rgba(124, 58, 237, 0.5);
+  color: #a5b8e8;
+  background: rgba(124, 58, 237, 0.08);
+  backdrop-filter: blur(6px);
+}
+body.future-mode .btn-ghost:hover { color: #67e8f9; border-color: #22d3ee; box-shadow: 0 0 16px rgba(34, 211, 238, 0.35); }
+
+/* glass cards everywhere */
+body.future-mode .post-card,
+body.future-mode .widget,
+body.future-mode .article,
+body.future-mode .toc,
+body.future-mode .tags-hero,
+body.future-mode .empty,
+body.future-mode .editor-login {
+  background: linear-gradient(165deg, rgba(23, 33, 64, 0.72), rgba(10, 16, 36, 0.82));
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.12), 0 16px 44px rgba(2, 6, 23, 0.6);
+}
+body.future-mode .post-card::before { width: 4px; background: linear-gradient(180deg, #7c3aed, #22d3ee); box-shadow: 0 0 14px rgba(124, 58, 237, 0.9); }
+body.future-mode .post-card:hover {
+  border-color: rgba(34, 211, 238, 0.55);
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.3), 0 22px 60px rgba(59, 130, 246, 0.35);
+  transform: translateY(-4px) scale(1.004);
+}
+body.future-mode .post-card h3 { color: #e6f1ff; text-shadow: 0 0 14px rgba(96, 165, 250, 0.35); }
+
+body.future-mode .section-title::before { background: linear-gradient(180deg, #7c3aed, #22d3ee); box-shadow: 0 0 10px rgba(124, 58, 237, 0.8); }
+body.future-mode .widget h4::before { background: linear-gradient(180deg, #7c3aed, #22d3ee); box-shadow: 0 0 10px rgba(124, 58, 237, 0.8); }
+body.future-mode .stat-cell { background: rgba(124, 58, 237, 0.16); }
+body.future-mode .stat-cell b { color: #67e8f9; text-shadow: 0 0 12px rgba(103, 232, 249, 0.6); }
+body.future-mode .conflict-note { background: rgba(245, 158, 11, 0.14); border-color: rgba(245, 158, 11, 0.45); }
+body.future-mode .chip { border-color: rgba(124, 58, 237, 0.5); background: rgba(124, 58, 237, 0.14); color: #9ecbff; }
+body.future-mode .chip:hover { background: linear-gradient(135deg, #7c3aed, #3b82f6); color: #fff; box-shadow: 0 0 14px rgba(124, 58, 237, 0.7); }
+
+/* glowing content accents */
+body.future-mode .article-body h2 {
+  border-left: 4px solid #22d3ee;
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.12), transparent 70%);
+  text-shadow: 0 0 16px rgba(103, 232, 249, 0.4);
+}
+body.future-mode .article-body blockquote {
+  border-left: 4px solid #7c3aed;
+  background: rgba(124, 58, 237, 0.1);
+}
+body.future-mode .article-body pre { border-color: rgba(96, 165, 250, 0.3); box-shadow: 0 0 24px rgba(59, 130, 246, 0.18); }
+body.future-mode .article-body a { color: #67e8f9; border-bottom-color: rgba(103, 232, 249, 0.5); }
+
+body.future-mode #theme-toggle { border-color: rgba(124, 58, 237, 0.5); background: rgba(124, 58, 237, 0.12); }
+body.future-mode .site-nav a.active { color: #67e8f9; text-shadow: 0 0 12px rgba(103, 232, 249, 0.7); }
+body.future-mode .site-nav a.active::after { background: linear-gradient(90deg, #7c3aed, #22d3ee); box-shadow: 0 0 10px rgba(34, 211, 238, 0.9); }
+body.future-mode .pagination a { border-color: rgba(96, 165, 250, 0.3); background: rgba(16, 26, 46, 0.8); }
+body.future-mode .pagination a:hover { border-color: #22d3ee; box-shadow: 0 0 12px rgba(34, 211, 238, 0.4); color: #67e8f9; }
+body.future-mode .pagination .current { background: linear-gradient(135deg, #7c3aed, #3b82f6); box-shadow: 0 0 16px rgba(124, 58, 237, 0.7); }
+
+/* selection & scrollbar flavor */
+body.future-mode ::selection { background: #22d3ee; color: #041018; }
+
+/* cursor-following light — stronger in future mode */
+body.future-mode #cursor-glow {
+  background: radial-gradient(closest-side, rgba(103, 232, 249, 0.18), rgba(124, 58, 237, 0.08) 45%, transparent 70%);
+  filter: blur(2px);
+}
+
+/* ghost card glow — neon in future mode */
+body.future-mode .fade-glow {
+  background:
+    linear-gradient(180deg, transparent 0%, rgba(10, 16, 36, 0.82) 50%, #060a18 90%),
+    radial-gradient(62% 48% at 50% 112%, rgba(124, 58, 237, 0.45), rgba(34, 211, 238, 0.18) 45%, transparent 72%);
+}
+body.future-mode .fade-cta {
+  color: #67e8f9;
+  border-color: rgba(34, 211, 238, 0.45);
+  background: rgba(16, 26, 46, 0.8);
+  box-shadow: 0 0 18px rgba(124, 58, 237, 0.35);
+}
+body.future-mode .fade-card-link:hover .fade-cta {
+  background: linear-gradient(135deg, #7c3aed, #3b82f6);
+  color: #fff;
+  box-shadow: 0 0 30px rgba(34, 211, 238, 0.5);
+}
+
+/* subtle respawn transition when toggled */
+body, .hero, .post-card, .widget, .article, .site-header { transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease, transform 0.2s ease; }

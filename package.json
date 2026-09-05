@@ -1,0 +1,26 @@
+{
+  "name": "cyanote",
+  "version": "1.0.0",
+  "description": "Cyanote — a Hexo-inspired blogging platform with a futuristic style toggle, Yuque-style Markdown editor, dark/light themes and a blue accent.",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "seed": "node server/seed.js",
+    "e2e": "node e2e-smoke.mjs"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "dompurify": "^3.2.4",
+    "express": "^4.21.2",
+    "marked": "^15.0.6",
+    "multer": "^2.0.2",
+    "prismjs": "^1.30.0"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.10.0"
+  }
+}
