@@ -144,6 +144,8 @@ check('sidebar future switch toggles off', !(await page.evaluate(() => document.
 /* ============ POSTS / ARTICLE / PAGES ============ */
 await page.goto(`${BASE}/#/posts`, { waitUntil: 'networkidle0' });
 await page.waitForSelector('.post-card');
+// sidebar renders from two parallel fetches — wait for it before counting
+await page.waitForFunction(() => document.querySelectorAll('.widget').length >= 5, { timeout: 8000 });
 check('posts list + 5 sidebar widgets', (await page.$$('.widget')).length === 5);
 await page.type('#post-search', 'Node');
 await sleep(900);
