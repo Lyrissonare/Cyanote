@@ -1,5 +1,8 @@
 # 🌊 Cyanote
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![IIIA-4](https://img.shields.io/badge/IIIA-4-9370DB)](https://github.com/ErSanSan233/IIIA)
+
 一个前后端完备（前后分离）的博客系统。阅读体验参照 **Hexo / Butterfly**，写作体验参照 **语雀**，全局特征色为**蓝色**，支持**暗色 / 亮色**主题一键切换，列表侧边栏可开启「**未来主义**」先锋风格。
 
 ## 功能一览
@@ -102,7 +105,7 @@ data/              # 运行时生成：cyanote.db + uploads/（已 gitignore）
 
 ## 许可证
 
-[MIT](LICENSE)
+[MIT](LICENSE)。本项目存在大量由Deepseek V4.1 Flash和GLM 5.3 Flash（以及未列出的其他AI）撰写的代码，一开始我是纯打算自用的，所以我的想法比MIT更宽松，你完全可以不署名。当然，如果你愿意真正上手用一用并给我提出建议就更好了。
 
 ## 自动化验证
 
