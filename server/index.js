@@ -75,7 +75,7 @@ app.use((err, req, res, next) => {
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`\n  🌊 Cyanote is running at http://localhost:${PORT}`);
+  console.log(`\n  🌊yanote is running at http://localhost:${PORT}`);
   console.log(`  Data: ${DATA_DIR}`);
   if (adminToken.source === 'env') {
     console.log('  Admin token: from env CYANOTE_TOKEN\n');
