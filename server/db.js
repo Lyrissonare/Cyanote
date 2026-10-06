@@ -287,6 +287,11 @@ export function deleteTag(name) {
 
 const DEFAULT_SETTINGS = {
   homeRecentCount: '3',
+  protectionLevel: 'high', // 'high' | 'low' — 限流与防爆破强度
+  announcementsEnabled: '0', // '0' | '1' — 侧边栏公告栏开关
+  announcements: '', // 公告内容（Markdown）
+  friendLinksEnabled: '0', // '0' | '1' — 侧边栏友情链接开关
+  friendLinks: '', // 规范化 JSON：[{"name","url","desc"}]
   aboutContent: `# 关于 Cyanote
 
 > 在蓝色的深处，记录思想与代码。
@@ -332,5 +337,17 @@ export function setSiteSettings(patch) {
   for (const [key, value] of Object.entries(patch)) {
     if (key in DEFAULT_SETTINGS) upsert.run(key, String(value));
   }
+  if ('protectionLevel' in patch) protectionLevelCache = patch.protectionLevel === 'low' ? 'low' : 'high';
   return getSiteSettings();
+}
+
+/** Cached protection level — consulted by the rate limiters on every request. */
+let protectionLevelCache = null;
+
+export function getProtectionLevel() {
+  if (protectionLevelCache === null) {
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'protectionLevel'").get();
+    protectionLevelCache = row?.value === 'low' ? 'low' : 'high';
+  }
+  return protectionLevelCache;
 }

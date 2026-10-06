@@ -19,6 +19,7 @@ import {
   deleteCategory,
   renameTag,
   deleteTag,
+  getProtectionLevel,
   UPLOAD_DIR,
 } from './db.js';
 import { adminToken } from './auth.js';
@@ -42,7 +43,8 @@ function isAuthed(req) {
 }
 
 const authLockout = createLockout({
-  maxFailures: 10,
+  // 防护等级「低」时放宽到 50 次（本地开发），「高」为默认 10 次
+  maxFailures: () => (getProtectionLevel() === 'low' ? 50 : 10),
   windowMs: 10 * 60_000,
   lockoutMs: 15 * 60_000,
   message: '认证失败次数过多，请 15 分钟后再试',
@@ -96,12 +98,15 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
-/* ---------------- Rate limiting ---------------- */
+/* ---------------- Rate limiting ----------------
+   Budgets scale with the protection level set in 站点设置:
+   high (default) = values below; low = 5× looser (local development). */
+const protectionScale = () => (getProtectionLevel() === 'low' ? 5 : 1);
 
-const apiLimiter = createRateLimiter({ windowMs: 5 * 60_000, max: 300 });
-const writeLimiter = createRateLimiter({ windowMs: 5 * 60_000, max: 120, message: '写操作过于频繁，请稍后再试' });
-const authCheckLimiter = createRateLimiter({ windowMs: 5 * 60_000, max: 30, message: '尝试过于频繁，请稍后再试' });
-const uploadLimiter = createRateLimiter({ windowMs: 10 * 60_000, max: 30, message: '上传过于频繁，请稍后再试' });
+const apiLimiter = createRateLimiter({ windowMs: 5 * 60_000, max: () => 300 * protectionScale() });
+const writeLimiter = createRateLimiter({ windowMs: 5 * 60_000, max: () => 120 * protectionScale(), message: '写操作过于频繁，请稍后再试' });
+const authCheckLimiter = createRateLimiter({ windowMs: 5 * 60_000, max: () => 30 * protectionScale(), message: '尝试过于频繁，请稍后再试' });
+const uploadLimiter = createRateLimiter({ windowMs: 10 * 60_000, max: () => 30 * protectionScale(), message: '上传过于频繁，请稍后再试' });
 
 /* View counting: one bump per article per IP per hour, so refreshes and
    scripted hits cannot inflate the counter unboundedly. */
@@ -142,7 +147,15 @@ router.get('/settings', (req, res) => {
 });
 
 router.put('/settings', requireAuth, (req, res) => {
-  const { homeRecentCount, aboutContent } = req.body ?? {};
+  const {
+    homeRecentCount,
+    aboutContent,
+    protectionLevel,
+    announcementsEnabled,
+    announcements,
+    friendLinksEnabled,
+    friendLinks,
+  } = req.body ?? {};
   const patch = {};
   if (homeRecentCount !== undefined) {
     const n = Number(homeRecentCount);
@@ -154,8 +167,58 @@ router.put('/settings', requireAuth, (req, res) => {
   if (aboutContent !== undefined) {
     patch.aboutContent = String(aboutContent).slice(0, 200000);
   }
+  if (protectionLevel !== undefined) {
+    if (protectionLevel !== 'high' && protectionLevel !== 'low') {
+      return res.status(400).json({ error: '防护等级仅支持 high / low' });
+    }
+    patch.protectionLevel = protectionLevel;
+  }
+  if (announcementsEnabled !== undefined) {
+    patch.announcementsEnabled = announcementsEnabled === true || announcementsEnabled === '1' ? '1' : '0';
+  }
+  if (announcements !== undefined) {
+    patch.announcements = String(announcements).slice(0, 20000);
+  }
+  if (friendLinksEnabled !== undefined) {
+    patch.friendLinksEnabled = friendLinksEnabled === true || friendLinksEnabled === '1' ? '1' : '0';
+  }
+  if (friendLinks !== undefined) {
+    try {
+      patch.friendLinks = JSON.stringify(normalizeFriendLinks(friendLinks));
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
   res.json(setSiteSettings(patch));
 });
+
+/* Friend links are edited as lines of `名称 | 链接 | 备注(可选)` and stored
+   as canonical JSON. Only http(s) URLs are accepted — javascript: and friends
+   must never reach the public sidebar. */
+function normalizeFriendLinks(input) {
+  const lines = Array.isArray(input)
+    ? input.map((item) => (typeof item === 'string' ? item : [item.name, item.url, item.desc].filter(Boolean).join(' | ')))
+    : String(input).split(/\r?\n/);
+  const links = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const parts = line.split('|').map((s) => s.trim());
+    const [name, url, desc = ''] = parts;
+    if (parts.length < 2 || !name || !url) {
+      throw new Error(`友情链接格式错误：「${line.slice(0, 60)}」，每行应为 名称 | 链接 | 备注(可选)`);
+    }
+    if (!/^https?:\/\/\S+/i.test(url)) {
+      throw new Error(`友情链接必须是 http(s) 链接：「${url.slice(0, 80)}」`);
+    }
+    if (name.length > 50 || desc.length > 100) {
+      throw new Error('友情链接名称不超过 50 字、备注不超过 100 字');
+    }
+    links.push({ name, url, desc });
+  }
+  if (links.length > 100) links.length = 100;
+  return links;
+}
 
 /* ---------------- Category / tag management ---------------- */
 

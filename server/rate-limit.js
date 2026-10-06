@@ -21,13 +21,15 @@ function sendTooMany(res, retryAfterSec, message) {
 
 /**
  * Fixed-window rate limiter. Each key gets `max` requests per `windowMs`;
- * exceeding the budget returns 429 until the window resets.
+ * exceeding the budget returns 429 until the window resets. `max` may be a
+ * number or a function of the request (e.g. scaling with the protection level).
  */
 export function createRateLimiter({ windowMs, max, message = '请求过于频繁，请稍后再试' }) {
   const hits = new Map(); // key -> { count, resetAt }
   let lastSweep = 0;
 
   return function rateLimit(req, res, next) {
+    const limit = typeof max === 'function' ? max(req) : max;
     const now = Date.now();
     if ((now - lastSweep > windowMs && hits.size > 0) || hits.size > MAX_TRACKED_KEYS) {
       lastSweep = now;
@@ -40,9 +42,9 @@ export function createRateLimiter({ windowMs, max, message = '请求过于频繁
       hits.set(key, entry);
     }
     entry.count += 1;
-    res.setHeader('X-RateLimit-Limit', max);
-    res.setHeader('X-RateLimit-Remaining', Math.max(0, max - entry.count));
-    if (entry.count > max) {
+    res.setHeader('X-RateLimit-Limit', limit);
+    res.setHeader('X-RateLimit-Remaining', Math.max(0, limit - entry.count));
+    if (entry.count > limit) {
       return sendTooMany(res, Math.ceil((entry.resetAt - now) / 1000), message);
     }
     next();
@@ -52,8 +54,8 @@ export function createRateLimiter({ windowMs, max, message = '请求过于频繁
 /**
  * Failure lockout for authentication: after `maxFailures` failures within
  * `windowMs`, the key is locked out for `lockoutMs`. Successful auth resets
- * the failure count. `check()` answers the 429 itself and returns false while
- * the key is locked.
+ * the failure count. `maxFailures` may be a number or a function. `check()`
+ * answers the 429 itself and returns false while the key is locked.
  */
 export function createLockout({ maxFailures, windowMs, lockoutMs, message = '失败次数过多，请稍后再试' }) {
   const state = new Map(); // key -> { failures, windowStart, lockedUntil }
@@ -82,13 +84,14 @@ export function createLockout({ maxFailures, windowMs, lockoutMs, message = '失
     fail(req) {
       const now = Date.now();
       const key = limitKey(req);
+      const threshold = typeof maxFailures === 'function' ? maxFailures(req) : maxFailures;
       let entry = state.get(key);
       if (!entry || now - entry.windowStart > windowMs) {
         entry = { failures: 0, windowStart: now, lockedUntil: 0 };
         state.set(key, entry);
       }
       entry.failures += 1;
-      if (entry.failures >= maxFailures) {
+      if (entry.failures >= threshold) {
         entry.lockedUntil = now + lockoutMs;
         entry.windowStart = now;
       }

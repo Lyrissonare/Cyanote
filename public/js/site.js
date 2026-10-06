@@ -2,6 +2,7 @@
 import { get } from './api.js';
 import { escapeHtml, fmtDate, snippet, wordCount } from './util.js';
 import { isFutureOn, setFutureOn, applyTheme } from './theme.js';
+import { renderMarkdown } from './markdown.js';
 
 let metaCache = null;
 let metaAt = 0;
@@ -59,10 +60,48 @@ function tagCloudHTML(meta) {
     .join('');
 }
 
-/** Butterfly-style sidebar: 未来视效 switch + 站点统计 + 分类 + 标签云 + 归档 */
-export function sidebarHTML(meta) {
+function parseFriendLinks(json) {
+  try {
+    const arr = JSON.parse(json || '[]');
+    return Array.isArray(arr) ? arr.filter((l) => l && l.name && /^https?:\/\//i.test(l.url)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function announcementWidgetHTML(settings) {
+  if (settings.announcementsEnabled !== '1' || !(settings.announcements || '').trim()) return '';
+  const { html } = renderMarkdown(settings.announcements);
+  return `
+    <div class="widget announcement-widget">
+      <h4>📢 公告</h4>
+      <div class="article-body widget-md">${html}</div>
+    </div>`;
+}
+
+function friendLinksWidgetHTML(settings) {
+  if (settings.friendLinksEnabled !== '1') return '';
+  const links = parseFriendLinks(settings.friendLinks);
+  if (!links.length) return '';
+  return `
+    <div class="widget friend-links-widget">
+      <h4>🔗 友情链接</h4>
+      <ul class="widget-list">
+        ${links
+          .map(
+            (l) =>
+              `<li><a href="${escapeHtml(l.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(l.desc || l.name)}">${escapeHtml(l.name)}</a>${l.desc ? `<span class="fl-desc">${escapeHtml(l.desc)}</span>` : ''}</li>`
+          )
+          .join('')}
+      </ul>
+    </div>`;
+}
+
+/** Butterfly-style sidebar: 公告 + 未来视效 switch + 站点统计 + 分类 + 标签云 + 归档 + 友情链接 */
+export function sidebarHTML(meta, settings = {}) {
   return `
   <aside class="sidebar">
+    ${announcementWidgetHTML(settings)}
     <div class="widget future-widget">
       <h4>未来视效</h4>
       <button class="future-switch ${isFutureOn() ? 'active' : ''}" id="future-switch" title="切换未来主义先锋风格">
@@ -102,6 +141,7 @@ export function sidebarHTML(meta) {
           .join('')}
       </ul>
     </div>
+    ${friendLinksWidgetHTML(settings)}
   </aside>`;
 }
 
@@ -128,7 +168,8 @@ export function bindSidebar(root) {
 
 export async function renderSidebarInto(container) {
   try {
-    container.innerHTML = sidebarHTML(await getMeta());
+    const [meta, settings] = await Promise.all([getMeta(), get('/api/settings').catch(() => ({}))]);
+    container.innerHTML = sidebarHTML(meta, settings);
     bindSidebar(container);
   } catch {
     container.innerHTML = '';

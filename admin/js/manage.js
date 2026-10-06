@@ -191,6 +191,20 @@ export function renderManageTags(app) {
 }
 
 /* ================= 站点设置 ================= */
+/** friendLinks canonical JSON → editable lines of `名称 | 链接 | 备注` */
+function friendLinksToText(json) {
+  try {
+    const arr = JSON.parse(json || '[]');
+    if (!Array.isArray(arr)) return '';
+    return arr
+      .filter((l) => l && l.name && l.url)
+      .map((l) => (l.desc ? `${l.name} | ${l.url} | ${l.desc}` : `${l.name} | ${l.url}`))
+      .join('\n');
+  } catch {
+    return '';
+  }
+}
+
 export async function renderSettingsView(app) {
   let settings;
   try {
@@ -210,6 +224,30 @@ export async function renderSettingsView(app) {
         <label>首页「最新文章」展示数量（1-10）</label>
         <input type="number" id="set-recent-count" min="1" max="10" value="${Number(settings.homeRecentCount) || 3}" />
         <small class="field-hint">完整展示 N 篇，其后渲染 1 张半浸入光晕的幽灵卡片（点击进入全部文章）</small>
+      </div>
+      <div class="field" style="margin-bottom:18px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="set-announcements-on" ${settings.announcementsEnabled === '1' ? 'checked' : ''} />
+          启用侧边栏「公告栏」
+        </label>
+        <textarea id="set-announcements" rows="5" placeholder="公告内容，支持 Markdown…">${escapeHtml(settings.announcements || '')}</textarea>
+        <small class="field-hint">关闭开关时内容保留但不在前台显示</small>
+      </div>
+      <div class="field" style="margin-bottom:18px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="set-friend-links-on" ${settings.friendLinksEnabled === '1' ? 'checked' : ''} />
+          启用侧边栏「友情链接」
+        </label>
+        <textarea id="set-friend-links" rows="5" placeholder="每行一个：名称 | 链接 | 备注(可选)">${escapeHtml(friendLinksToText(settings.friendLinks))}</textarea>
+        <small class="field-hint">例如：<code>张三的博客 | https://example.com | 前端 / 摄影</code>，仅接受 http(s) 链接，最多 100 条</small>
+      </div>
+      <div class="field" style="margin-bottom:18px">
+        <label>防护等级</label>
+        <select id="set-protection-level">
+          <option value="high" ${settings.protectionLevel !== 'low' ? 'selected' : ''}>高 — 默认限流与防爆破（生产环境推荐）</option>
+          <option value="low" ${settings.protectionLevel === 'low' ? 'selected' : ''}>低 — 限流放宽 5 倍（本地开发用）</option>
+        </select>
+        <small class="field-hint">控制 API 限流额度与登录失败锁定的阈值，保存后立即生效，无需重启</small>
       </div>
       <div class="field">
         <label>关于页内容（Markdown）</label>
@@ -231,6 +269,11 @@ export async function renderSettingsView(app) {
       await put('/api/settings', {
         homeRecentCount: n,
         aboutContent: app.querySelector('#set-about').value,
+        protectionLevel: app.querySelector('#set-protection-level').value,
+        announcementsEnabled: app.querySelector('#set-announcements-on').checked ? '1' : '0',
+        announcements: app.querySelector('#set-announcements').value,
+        friendLinksEnabled: app.querySelector('#set-friend-links-on').checked ? '1' : '0',
+        friendLinks: app.querySelector('#set-friend-links').value,
       });
       toast('站点设置已保存 ✨', 'ok');
     } catch (e) {
