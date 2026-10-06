@@ -1,15 +1,71 @@
-/* E2E smoke test for Cyanote using puppeteer-core + local Chrome.
-   Run against a live server (assumed at http://localhost:3810).
-   Public site: /   ·   Admin console (hidden): /admin (views: posts/editor/categories/tags/settings) */
+/* E2E smoke test for Cyanote using puppeteer-core + a local browser.
+   Run against a live server (default http://localhost:3810, override with E2E_BASE).
+   Public site: /   ·   Admin console (hidden): /admin (views: posts/editor/categories/tags/settings)
+   Browser: auto-detects Chrome / Edge / Chromium; override with CHROME_PATH.
+   Admin token: from CYANOTE_TOKEN, or the auto-generated data/admin-token file. */
 import puppeteer from 'puppeteer-core';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const BASE = 'http://localhost:3810';
-const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const BASE = process.env.E2E_BASE || 'http://localhost:3810';
 const SHOTS = path.resolve('e2e-shots');
-const AUTH = { Authorization: 'Bearer cyanote-demo-token', 'Content-Type': 'application/json' };
 fs.mkdirSync(SHOTS, { recursive: true });
+
+function resolveAdminToken() {
+  const fromEnv = (process.env.CYANOTE_TOKEN || '').trim();
+  if (fromEnv) return fromEnv;
+  try {
+    const saved = fs.readFileSync(path.resolve('data/admin-token'), 'utf8').trim();
+    if (saved) return saved;
+  } catch {
+    /* not generated yet */
+  }
+  console.error('✖ 未找到管理令牌：请设置 CYANOTE_TOKEN，或先启动一次服务以生成 data/admin-token');
+  process.exit(1);
+}
+
+function findBrowser() {
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  const pf = process.env['ProgramFiles'];
+  const pf86 = process.env['ProgramFiles(x86)'];
+  const localAppData = process.env['LocalAppData'];
+  const candidates =
+    process.platform === 'win32'
+      ? [
+          pf && `${pf}\\Google\\Chrome\\Application\\chrome.exe`,
+          pf86 && `${pf86}\\Google\\Chrome\\Application\\chrome.exe`,
+          localAppData && `${localAppData}\\Google\\Chrome\\Application\\chrome.exe`,
+          pf && `${pf}\\Microsoft\\Edge\\Application\\msedge.exe`,
+          pf86 && `${pf86}\\Microsoft\\Edge\\Application\\msedge.exe`,
+          localAppData && `${localAppData}\\Microsoft\\Edge\\Application\\msedge.exe`,
+          localAppData && `${localAppData}\\Chromium\\Application\\chrome.exe`,
+        ]
+      : process.platform === 'darwin'
+        ? [
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+            '/Applications/Chromium.app/Contents/MacOS/Chromium',
+          ]
+        : [
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/snap/bin/chromium',
+            '/usr/bin/microsoft-edge',
+            '/usr/bin/microsoft-edge-stable',
+          ];
+  return candidates.filter(Boolean).find((p) => fs.existsSync(p));
+}
+
+const TOKEN = resolveAdminToken();
+const BROWSER = findBrowser();
+if (!BROWSER) {
+  console.error('✖ 未找到 Chrome / Edge / Chromium，可设置 CHROME_PATH 指定浏览器可执行文件路径');
+  process.exit(1);
+}
+console.log(`Browser: ${BROWSER}`);
+const AUTH = { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' };
 
 const results = [];
 const check = (name, ok, extra = '') => {
@@ -20,8 +76,8 @@ const check = (name, ok, extra = '') => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({
-  executablePath: CHROME,
-  headless: 'new',
+  executablePath: BROWSER,
+  headless: true,
   args: ['--no-first-run', '--disable-extensions', '--window-size=1440,900'],
 });
 const page = await browser.newPage();
@@ -138,7 +194,7 @@ await page.goto(`${BASE}/admin/`, { waitUntil: 'networkidle0' });
 await page.waitForSelector('.editor-login');
 check('admin gate login shown', true);
 check('admin has noindex', (await page.$eval('meta[name="robots"]', (m) => m.content)) === 'noindex, nofollow');
-await page.type('#login-token', 'cyanote-demo-token');
+await page.type('#login-token', TOKEN);
 await page.click('#login-btn');
 await page.waitForSelector('.mng-card', { timeout: 8000 });
 check('admin defaults to article management', (await page.$$('.mng-row')).length >= 6);

@@ -14,5 +14,7 @@ services:
         value: 24.15.0
       - key: CYANOTE_TOKEN
         generateValue: true # 在 Render 环境变量页查看管理台令牌
+      - key: TRUST_PROXY
+        value: "1" # Render 反向代理后按真实客户端 IP 限流
       - key: SEED_DEMO
         value: "1" # 首次启动自动写入演示文章；设为 0 关闭

@@ -255,4 +255,4 @@ for (const p of posts) {
 }
 
 console.log(`种子数据完成：${posts.length} 篇文章已写入（含 1 篇草稿）`);
-console.log('登录编辑器请使用管理令牌：cyanote-demo-token');
+console.log('管理令牌：设置环境变量 CYANOTE_TOKEN；未设置时服务首次启动会自动生成并保存到 data/admin-token');

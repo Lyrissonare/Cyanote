@@ -21,7 +21,13 @@
 
 ### 管理台（隐藏入口 `/admin`，公开站点无任何入口链接）
 - 独立前端入口（`/admin/index.html`，`<meta name="robots" content="noindex">`），公开页面与打包代码中不包含任何写作入口与令牌逻辑；管理台资源一律 `no-cache` 下发，不会因缓存停留在旧版本
-- 写操作仍需管理令牌：`Authorization: Bearer <token>`（默认 `cyanote-demo-token`，可用环境变量 `CYANOTE_TOKEN` 覆盖，服务端使用恒定时间比较）
+- 写操作仍需管理令牌：`Authorization: Bearer <token>`（仅接受请求头，不支持 `?token=` 查询串，避免令牌进入访问日志 / 浏览器历史；服务端使用恒定时间比较）。令牌来源：环境变量 `CYANOTE_TOKEN` 优先；未设置时首次启动**自动生成强随机令牌**并保存到 `data/admin-token`（0600 权限），不存在任何公开的默认令牌
+- **安全防护**：
+  - 认证失败防爆破：10 分钟内失败 10 次即锁定该 IP 15 分钟（所有需令牌接口共用）
+  - 全局限流：`/api` 每 IP 每 5 分钟 300 次；写操作每 5 分钟 120 次；令牌校验每 5 分钟 30 次；上传每 10 分钟 30 次，超限返回 429
+  - 上传校验基于**文件魔数**（文件头字节），不信任客户端上报的 MIME 与文件名；扩展名由嗅探出的真实类型决定，SVG 等可携带脚本的格式一律拒绝
+  - 阅读数防刷：同一 IP 对同一文章每小时最多 +1
+  - `/uploads` 响应附带 `X-Content-Type-Options: nosniff` 与 `Content-Security-Policy: sandbox`
 - **五大管理视图**（顶部标签页导航）：
   - **📄 文章管理**（默认）：全部文章列表（标题/slug/状态/日期/阅读数），标题搜索、全部/已发布/草稿筛选，行内一键 **编辑 / 发布 / 撤回 / 删除**
   - **✏️ 写文章**：语雀式 Markdown 编辑器（见下）
@@ -46,13 +52,13 @@
 | PUT | `/api/tags/:from` | 重命名标签（同步所有文章）⚠️需令牌 |
 | DELETE | `/api/tags/:name` | 删除标签（从所有文章移除）⚠️需令牌 |
 | GET | `/api/articles` | 列表（`status/category/tag/q/page/pageSize/order`） |
-| GET | `/api/articles/:slug` | 单篇详情（令牌可读草稿，公开访问自动 +1 阅读） |
+| GET | `/api/articles/:slug` | 单篇详情（令牌可读草稿，公开访问阅读数每 IP 每小时最多 +1） |
 | POST | `/api/articles` | 新建文章 ⚠️需令牌 |
 | PUT | `/api/articles/:slug` | 更新文章 ⚠️需令牌 |
 | DELETE | `/api/articles/:slug` | 删除文章 ⚠️需令牌 |
 | POST | `/api/articles/:slug/publish` | 发布 ⚠️需令牌 |
 | POST | `/api/articles/:slug/unpublish` | 撤回草稿 ⚠️需令牌 |
-| POST | `/api/uploads` | 图片上传（PNG/JPEG/GIF/WebP/AVIF，≤20MB）⚠️需令牌 |
+| POST | `/api/uploads` | 图片上传（服务端按魔数校验 PNG/JPEG/GIF/WebP/AVIF，≤20MB）⚠️需令牌 |
 | GET | `/api/auth/check` | 校验管理令牌 |
 
 ## 快速开始
@@ -64,7 +70,7 @@ npm start          # 启动 http://localhost:3810
 ```
 
 - 公开站点：`http://localhost:3810`
-- 管理台（隐藏入口）：`http://localhost:3810/admin/`（默认令牌 `cyanote-demo-token`）
+- 管理台（隐藏入口）：`http://localhost:3810/admin/`（令牌见下方「环境变量」说明）
 
 ## 目录结构
 
@@ -84,12 +90,19 @@ data/              # 运行时生成：cyanote.db + uploads/（已 gitignore）
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `PORT` | `3810` | 服务端口 |
-| `CYANOTE_TOKEN` | `cyanote-demo-token` | 管理令牌（生产务必修改） |
+| `CYANOTE_TOKEN` | （自动生成） | 管理令牌；**生产环境务必显式设置**。未设置时首次启动自动生成强随机令牌并保存到 `data/admin-token`，后续启动复用该文件 |
+| `TRUST_PROXY` | （不信任） | 反向代理部署（Render / Nginx 等）设为 `1`，使 `req.ip` 取真实客户端 IP，限流与防刷按真实 IP 生效 |
+
+## 许可证
+
+[MIT](LICENSE)
 
 ## 自动化验证
 
 ```bash
-npm run e2e   # 50 项端到端检查（需已启动服务；驱动本机 Chrome）
+npm run e2e   # 50 项端到端检查（需已启动服务）
 ```
+
+自动探测本机 Chrome / Edge / Chromium（Windows / macOS / Linux 常见安装路径），也可用 `CHROME_PATH` 指定浏览器可执行文件；管理令牌从 `CYANOTE_TOKEN` 或 `data/admin-token` 读取；目标地址可用 `E2E_BASE` 覆盖。
 
 覆盖：首页侧边栏（未来视效开关 / 站点统计）、幽灵卡片与数量配置、光标光照、关于页、亮色冲突提示与一键修复、公开站点无任何写作入口、文章列表/搜索/分页、详情 TOC 与代码高亮、分类/标签/归档、管理台登录（noindex）与五大视图（文章管理搜索/筛选/发布撤回/删除/编辑跳转、分类与标签重命名/删除联动、站点设置）、工具栏 16 键与撤销/重做、实时预览、图片粘贴上传、保存发布与公开可读全链路。

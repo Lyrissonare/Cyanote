@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import multer from 'multer';
 import crypto from 'node:crypto';
-import path from 'node:path';import {
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {
   listArticles,
   getArticle,
   createArticle,
@@ -19,8 +21,10 @@ import path from 'node:path';import {
   deleteTag,
   UPLOAD_DIR,
 } from './db.js';
+import { adminToken } from './auth.js';
+import { createRateLimiter, createLockout, limitMethods } from './rate-limit.js';
 
-export const ADMIN_TOKEN = process.env.CYANOTE_TOKEN || 'cyanote-demo-token';
+const ADMIN_TOKEN = adminToken.token;
 
 /** constant-time token comparison */
 function safeEqual(a, b) {
@@ -31,41 +35,99 @@ function safeEqual(a, b) {
 }
 
 function isAuthed(req) {
+  // Bearer header only: tokens must never travel in URLs (access logs, history, referrers)
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : req.query.token;
-  return safeEqual(token, ADMIN_TOKEN);
+  if (!header.startsWith('Bearer ')) return false;
+  return safeEqual(header.slice(7), ADMIN_TOKEN);
 }
 
+const authLockout = createLockout({
+  maxFailures: 10,
+  windowMs: 10 * 60_000,
+  lockoutMs: 15 * 60_000,
+  message: '认证失败次数过多，请 15 分钟后再试',
+});
+
 export function requireAuth(req, res, next) {
-  if (isAuthed(req)) return next();
+  if (!authLockout.check(req, res)) return;
+  if (isAuthed(req)) {
+    authLockout.reset(req);
+    return next();
+  }
+  authLockout.fail(req);
   res.status(401).json({ error: '未授权：请提供有效的管理令牌' });
 }
 
-const ALLOWED_MIME = new Set([
-  'image/png',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-  'image/avif',
-]);
+/* ---------------- Upload validation ----------------
+   The client-declared MIME type and file name are attacker-controlled, so
+   both are ignored: the file's first bytes must match the magic number of an
+   allowed raster image type, and the stored extension is derived from that
+   sniffed type. SVG (which can carry <script>) can therefore never be stored. */
 
+const EXT_BY_MIME = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/avif': '.avif',
+};
+
+function sniffImageMime(buf) {
+  if (!buf || buf.length < 12) return null;
+  if (
+    buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47 &&
+    buf[4] === 0x0d && buf[5] === 0x0a && buf[6] === 0x1a && buf[7] === 0x0a
+  ) return 'image/png';
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
+  const ascii = (start, end) => buf.subarray(start, end).toString('latin1');
+  const head6 = ascii(0, 6);
+  if (head6 === 'GIF87a' || head6 === 'GIF89a') return 'image/gif';
+  if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return 'image/webp';
+  if (ascii(4, 8) === 'ftyp') {
+    const brand = ascii(8, 12);
+    if (brand === 'avif' || brand === 'avis' || brand === 'av01') return 'image/avif';
+  }
+  return null;
+}
+
+// Buffered storage: the whole file (≤20MB) must be inspected before it is written anywhere.
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: UPLOAD_DIR,
-    filename(req, file, cb) {
-      const ext = path.extname(file.originalname).toLowerCase() || '.png';
-      const name = `${Date.now().toString(36)}-${crypto.randomBytes(6).toString('hex')}${ext}`;
-      cb(null, name);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
-  fileFilter(req, file, cb) {
-    if (ALLOWED_MIME.has(file.mimetype)) cb(null, true);
-    else cb(new Error('仅支持 PNG / JPEG / GIF / WebP / AVIF 图片'));
-  },
 });
 
+/* ---------------- Rate limiting ---------------- */
+
+const apiLimiter = createRateLimiter({ windowMs: 5 * 60_000, max: 300 });
+const writeLimiter = createRateLimiter({ windowMs: 5 * 60_000, max: 120, message: '写操作过于频繁，请稍后再试' });
+const authCheckLimiter = createRateLimiter({ windowMs: 5 * 60_000, max: 30, message: '尝试过于频繁，请稍后再试' });
+const uploadLimiter = createRateLimiter({ windowMs: 10 * 60_000, max: 30, message: '上传过于频繁，请稍后再试' });
+
+/* View counting: one bump per article per IP per hour, so refreshes and
+   scripted hits cannot inflate the counter unboundedly. */
+const VIEW_COOLDOWN_MS = 60 * 60_000;
+const viewBumps = new Map(); // "ip:slug" -> last bump timestamp
+
+function shouldBumpView(req, slug) {
+  const now = Date.now();
+  const key = `${limitKeyOf(req)}:${slug}`;
+  const last = viewBumps.get(key) || 0;
+  if (now - last < VIEW_COOLDOWN_MS) return false;
+  viewBumps.set(key, now);
+  if (viewBumps.size > 20000) {
+    for (const [k, t] of viewBumps) if (now - t > VIEW_COOLDOWN_MS) viewBumps.delete(k);
+  }
+  return true;
+}
+
+function limitKeyOf(req) {
+  return req.ip || 'unknown';
+}
+
 export const router = Router();
+
+router.use(apiLimiter);
+router.use(limitMethods(['POST', 'PUT', 'DELETE'], writeLimiter));
 
 /* ---------------- Public API ---------------- */
 
@@ -129,7 +191,7 @@ router.get('/archive', (req, res) => {
   res.json(getArchivePosts());
 });
 
-router.get('/auth/check', requireAuth, (req, res) => {
+router.get('/auth/check', authCheckLimiter, requireAuth, (req, res) => {
   res.json({ ok: true, role: 'admin' });
 });
 
@@ -142,7 +204,7 @@ router.get('/articles', (req, res) => {
 router.get('/articles/:slug', (req, res) => {
   const article = getArticle(req.params.slug, { includeDraft: isAuthed(req) });
   if (!article) return res.status(404).json({ error: '文章不存在' });
-  if (article.status === 'published') bumpViews(article.slug);
+  if (article.status === 'published' && shouldBumpView(req, article.slug)) bumpViews(article.slug);
   res.json(article);
 });
 
@@ -185,20 +247,32 @@ router.post('/articles/:slug/unpublish', requireAuth, (req, res) => {
   res.json(article);
 });
 
-router.post('/uploads', requireAuth, upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: '未收到文件' });
-  res.status(201).json({
-    url: `/uploads/${req.file.filename}`,
-    name: req.file.originalname,
-    size: req.file.size,
-    type: req.file.mimetype,
-  });
+router.post('/uploads', requireAuth, uploadLimiter, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: '未收到文件' });
+    const mime = sniffImageMime(req.file.buffer);
+    if (!mime) {
+      return res.status(415).json({ error: '文件内容不是受支持的图片（仅接受 PNG / JPEG / GIF / WebP / AVIF）' });
+    }
+    // Extension comes from the sniffed content type, never from the original file name.
+    const name = `${Date.now().toString(36)}-${crypto.randomBytes(6).toString('hex')}${EXT_BY_MIME[mime]}`;
+    await fs.writeFile(path.join(UPLOAD_DIR, name), req.file.buffer);
+    res.status(201).json({
+      url: `/uploads/${name}`,
+      name: req.file.originalname,
+      size: req.file.size,
+      type: mime,
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
-// Multer error handler (e.g. file too large)
+// Multer errors (e.g. file too large)
 router.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError || err?.message?.includes('仅支持')) {
-    return res.status(400).json({ error: err.message });
+  if (err instanceof multer.MulterError) {
+    const message = err.code === 'LIMIT_FILE_SIZE' ? '图片不能超过 20MB' : err.message;
+    return res.status(400).json({ error: message });
   }
   next(err);
 });

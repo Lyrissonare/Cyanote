@@ -60,7 +60,7 @@ export function renderLogin(app, slugParam, onSuccess) {
   app.innerHTML = `
     <div class="editor-login">
       <h2>🔐 进入管理台</h2>
-      <p>输入管理令牌以继续（开发环境默认令牌：<code>cyanote-demo-token</code>）</p>
+      <p>输入管理令牌以继续（令牌来自环境变量 CYANOTE_TOKEN，或首次启动时自动生成并保存在服务端 data/admin-token）</p>
       <input type="password" id="login-token" placeholder="管理令牌…" autocomplete="current-password" />
       <div class="error" id="login-error"></div>
       <button class="btn btn-primary" id="login-btn">进入管理台</button>

@@ -1,12 +1,19 @@
 import express from 'express';
-import fs from 'node:fs';
 import path from 'node:path';
 import { router } from './routes.js';
 import { db, DATA_DIR, PUBLIC_DIR, UPLOAD_DIR, ROOT_DIR } from './db.js';
+import { adminToken } from './auth.js';
 
 const app = express();
 const PORT = process.env.PORT || 3810;
 const ADMIN_DIR = path.join(ROOT_DIR, 'admin');
+
+// Set TRUST_PROXY=1 when behind one reverse proxy hop (Render, Nginx, ...),
+// so req.ip reflects the real client for rate limiting. Default: direct socket.
+const trustProxy = process.env.TRUST_PROXY;
+if (trustProxy !== undefined && trustProxy !== '0') {
+  app.set('trust proxy', trustProxy === 'true' ? true : Number(trustProxy) || 1);
+}
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '2mb' }));
@@ -14,7 +21,8 @@ app.use(express.json({ limit: '2mb' }));
 // API
 app.use('/api', router);
 
-// Uploaded images
+// Uploaded images — served as static files validated by magic bytes at upload
+// time; the sandbox CSP only applies when the URL is opened as a document.
 app.use(
   '/uploads',
   express.static(UPLOAD_DIR, {
@@ -22,6 +30,7 @@ app.use(
     immutable: true,
     setHeaders(res) {
       res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
     },
   })
 );
@@ -67,7 +76,17 @@ app.use((err, req, res, next) => {
 
 const server = app.listen(PORT, () => {
   console.log(`\n  🌊 Cyanote is running at http://localhost:${PORT}`);
-  console.log(`  Data: ${DATA_DIR} (token: ${process.env.CYANOTE_TOKEN ? 'from env CYANOTE_TOKEN' : 'cyanote-demo-token'})\n`);
+  console.log(`  Data: ${DATA_DIR}`);
+  if (adminToken.source === 'env') {
+    console.log('  Admin token: from env CYANOTE_TOKEN\n');
+  } else if (adminToken.source === 'file') {
+    console.log('  Admin token: from data/admin-token (set CYANOTE_TOKEN to override)\n');
+  } else {
+    // First boot without CYANOTE_TOKEN: a random secret was generated. Print it
+    // once so the local developer can log in; later boots stay quiet.
+    console.log(`  Admin token (auto-generated, saved to data/admin-token): ${adminToken.token}`);
+    console.log('  ⚠️  Set CYANOTE_TOKEN in production to control the admin token explicitly.\n');
+  }
 });
 
 // First run on a fresh deployment: seed demo content unless SEED_DEMO=0
