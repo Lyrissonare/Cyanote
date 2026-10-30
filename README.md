@@ -102,7 +102,8 @@ data/              # 运行时生成：cyanote.db + uploads/（已 gitignore）
 
 - **[项目介绍](docs/cyanote-intro.md)** —— 完整导览：两种体验的拆分、阅读侧细节、语雀式编辑器、后端与安全模型（另有一段[极简版](docs/cyanote-intro-mini.md)）
 - **[路线图](ROADMAP.md)** —— 后续方向（RSS / 搜索 / 评论 / 定时发布 / 主题与插件机制等，参考 Hexo 插件生态与 WordPress 的成熟设计），目前是**待审阅草案**
-
+- **本项目当前有纯前端版本**，称为[Cyanote_Lite](https://github.com/Lyrissonare/Cyanote_Lite)。我将其发布为了[GH Page博客](https://github.com/Lyrissonare/blog)。
+  
 ## 许可证
 
 [MIT](LICENSE)。本项目存在大量由Deepseek V4.1 Flash和GLM 5.3 Flash（以及未列出的其他AI）撰写的代码，作者精力有限，一开始就是纯打算自用的，所以我的想法比MIT更宽松，你完全可以不署名。当然，如果你愿意真正上手用一用并给我提出建议就更好了。
@@ -120,4 +121,5 @@ npm run e2e   # 56 项端到端检查（需已启动服务）
 ## Welcome to render ideas in blue.
 
 🌨️雪来临时，无处躲藏⛄️，不要望向我时同样的一片冰凉❄️
+
 --COP 《雪来临时》
